@@ -4,4 +4,4 @@ Comprehensive ROS 2 package for the Fuser (based on [ORB_SLAM2](https://github.c
 Currently supports Intel RealSense cameras, and offers many configuration options.
 Written in C++.
 
-**Work in progress as of August 23, 2022.**
+**Work in progress as of April 24, 2022.**
