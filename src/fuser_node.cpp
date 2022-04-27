@@ -25,12 +25,14 @@ FuserNode::FuserNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, float _cam
 {
   // Initialize QoS profile.
   auto state_qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
+  auto pc_qos    = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
 
   // Initialize publishers.
 #ifdef PX4
   vio_publisher_ = this->create_publisher<px4_msgs::msg::VehicleVisualOdometry>("VehicleVisualOdometry_PubSubTopic", 10);
 #endif
   state_publisher_ = this->create_publisher<std_msgs::msg::Int32>("FuserState", state_qos);
+  point_cloud_publisher_ = this->create_publisher<fuser::msg::PointCloud>("PointCloud", pc_qos);
 
   // Create callback groups.
 #ifdef PX4
@@ -57,6 +59,10 @@ FuserNode::FuserNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, float _cam
   // Activate timer for VIO publishing.
   // VIO: 10 ms period.
   vio_timer_ = this->create_wall_timer(10ms, std::bind(&FuserNode::timer_vio_callback, this), vio_clbk_group_);
+
+  // Activate timer for PC publishing
+  // PC: 1000 ms period.
+  pc_timer_  = this->create_wall_timer(1000ms, std::bind(&FuserNode::timer_pc_callback, this), vio_clbk_group_);
 
   // Compute camera values.
   cp_sin_ = sin(camera_pitch);
@@ -242,4 +248,19 @@ void FuserNode::timer_vio_callback(void)
   std_msgs::msg::Int32 msg{};
   msg.set__data(_camPose.getAccuracy());
   state_publisher_->publish(msg);
+}
+
+/**
+ * @brief Publishes the latest PC data to PC topic.
+ */
+void FuserNode::timer_pc_callback(void)
+{
+  uint64_t msg_timestamp = timestamp_.load(std::memory_order_acquire);
+  fuser::msg::PointCloud message{};
+
+  // Set message timestamp (from Timesync).
+  message.set__timestamp(msg_timestamp);
+  message.set__timestamp_sample(msg_timestamp);
+
+  point_cloud_publisher_->publish(message);
 }

@@ -34,6 +34,7 @@
 
 /* State messages. */
 #include <std_msgs/msg/int32.hpp>
+#include "fuser/msg/PointCloud.hpp"
 
 /**
  * @brief ORB_SLAM2 node: publishes pose estimates on ROS 2/PX4 topics.
@@ -49,12 +50,14 @@ public:
 
 private:
   void timer_vio_callback(void);
+  void timer_pc_callback(void);
 
   rclcpp::CallbackGroup::SharedPtr vio_clbk_group_;
 
-  rclcpp::TimerBase::SharedPtr vio_timer_;
+  rclcpp::TimerBase::SharedPtr vio_timer_, pc_timer_;
 
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr state_publisher_;
+  rclcpp::Publisher<fuser::msg::PointCloud>::SharedPtr point_cloud_publisher_;
 
   ORB_SLAM2::System *mpSLAM;
   int32_t fuserState = Pose::trackQoS::LOST;
