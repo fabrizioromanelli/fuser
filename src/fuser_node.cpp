@@ -14,6 +14,20 @@ using namespace std::chrono_literals;
 /* QoS profile for state data. */
 rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
 
+// Define our own PointCloud type for easy use
+typedef struct
+{
+  float x; // x
+  float y; // y
+  float z; // z
+} Point;
+
+typedef struct
+{
+  std_msgs::Header header;
+  std::vector<Point> points;
+} PointCloud;
+
 /**
  * @brief Creates an FuserNode.
  * 
@@ -32,7 +46,7 @@ FuserNode::FuserNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, float _cam
   vio_publisher_ = this->create_publisher<px4_msgs::msg::VehicleVisualOdometry>("VehicleVisualOdometry_PubSubTopic", 10);
 #endif
   state_publisher_ = this->create_publisher<std_msgs::msg::Int32>("FuserState", state_qos);
-  point_cloud_publisher_ = this->create_publisher<fuser::msg::PointCloud>("PointCloud", pc_qos);
+  point_cloud_publisher_ = this->create_publisher<sensor_msgs::PointCloud2>("PointCloud", pc_qos);
 
   // Create callback groups.
 #ifdef PX4
@@ -251,16 +265,61 @@ void FuserNode::timer_vio_callback(void)
 }
 
 /**
- * @brief Publishes the latest PC data to PC topic.
+ * @brief Publishes the latest PC data to PointCloud topic.
  */
 void FuserNode::timer_pc_callback(void)
 {
-  uint64_t msg_timestamp = timestamp_.load(std::memory_order_acquire);
-  fuser::msg::PointCloud message{};
+  // Fake plastic tree...
+  PointCloud cloud; // This has to come from VSLAM
+  cloud.header.frame_id = "fuser_cloud";
+  cloud.header.stamp = rosTime(ros::WallTime::now());
+  Point tmp;
+  tmp.x = 1.0;
+  tmp.y = 2.0;
+  tmp.z = 3.0;
+  cloud.points.push_back(tmp);
+  tmp.x = 11.0;
+  tmp.y = 22.0;
+  tmp.z = 33.0;
+  cloud.points.push_back(tmp);
+  // ...fake plastic tree
 
-  // Set message timestamp (from Timesync).
-  message.set__timestamp(msg_timestamp);
-  message.set__timestamp_sample(msg_timestamp);
+  const uint32_t POINT_STEP = 12;
+  sensor_msgs::PointCloud2 msg{};
 
-  point_cloud_publisher_->publish(message);
+  // Prepare the point cloud message header and fields
+  msg.header.frame_id = cloud.header.frame_id;
+  msg.header.stamp = cloud.header.stamp;
+  msg.fields.resize(3);
+  msg.fields[0].name = "x";
+  msg.fields[0].offset = 0;
+  msg.fields[0].datatype = sensor_msgs::PointField::FLOAT32;
+  msg.fields[0].count = 1;
+  msg.fields[1].name = "y";
+  msg.fields[1].offset = 4;
+  msg.fields[1].datatype = sensor_msgs::PointField::FLOAT32;
+  msg.fields[1].count = 1;
+  msg.fields[2].name = "z";
+  msg.fields[2].offset = 8;
+  msg.fields[2].datatype = sensor_msgs::PointField::FLOAT32;
+  msg.fields[2].count = 1;
+  msg.data.resize(std::max((size_t)1, cloud.points.size()) * POINT_STEP, 0x00);
+  msg.point_step = POINT_STEP;
+  msg.row_step = msg.data.size();
+  msg.height = 1;
+  msg.width = msg.row_step / POINT_STEP;
+  msg.is_bigendian = false;
+  msg.is_dense = true;
+  uint8_t *ptr = msg.data.data();
+
+  // Fill the point cloud message with cloud points
+  for (size_t i = 0; i < cloud.points.size(); i++)
+  {
+    *(reinterpret_cast<float*>(ptr + 0)) = cloud.points[i].x;
+    *(reinterpret_cast<float*>(ptr + 4)) = cloud.points[i].y;
+    *(reinterpret_cast<float*>(ptr + 8)) = cloud.points[i].z;
+    ptr += POINT_STEP;
+  }
+
+  point_cloud_publisher_->publish(msg);
 }

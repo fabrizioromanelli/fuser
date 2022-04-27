@@ -72,11 +72,6 @@ elseif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
   message(STATUS "Debug build type selected")
 endif()
 
-find_package(rosidl_default_generators REQUIRED)
-rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/PointCloud.msg"
-)
-
 set(LIBS -lfbow
          -lDLib
          -lg2o

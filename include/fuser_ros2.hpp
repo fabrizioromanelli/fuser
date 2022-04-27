@@ -34,7 +34,7 @@
 
 /* State messages. */
 #include <std_msgs/msg/int32.hpp>
-#include "fuser/msg/PointCloud.hpp"
+#include <sensor_msgs/PointCloud2.h>
 
 /**
  * @brief ORB_SLAM2 node: publishes pose estimates on ROS 2/PX4 topics.
