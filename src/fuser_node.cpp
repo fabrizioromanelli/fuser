@@ -24,7 +24,7 @@ typedef struct
 
 typedef struct
 {
-  std_msgs::Header header;
+  std_msgs::msg::Header header;
   std::vector<Point> points;
 } PointCloud;
 
@@ -46,7 +46,7 @@ FuserNode::FuserNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, float _cam
   vio_publisher_ = this->create_publisher<px4_msgs::msg::VehicleVisualOdometry>("VehicleVisualOdometry_PubSubTopic", 10);
 #endif
   state_publisher_ = this->create_publisher<std_msgs::msg::Int32>("FuserState", state_qos);
-  point_cloud_publisher_ = this->create_publisher<sensor_msgs::PointCloud2>("PointCloud", pc_qos);
+  point_cloud_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloud", pc_qos);
 
   // Create callback groups.
 #ifdef PX4
@@ -72,11 +72,12 @@ FuserNode::FuserNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, float _cam
 
   // Activate timer for VIO publishing.
   // VIO: 10 ms period.
+  // TODO: refactoring into thread
   vio_timer_ = this->create_wall_timer(10ms, std::bind(&FuserNode::timer_vio_callback, this), vio_clbk_group_);
 
   // Activate timer for PC publishing
   // PC: 1000 ms period.
-  pc_timer_  = this->create_wall_timer(1000ms, std::bind(&FuserNode::timer_pc_callback, this), vio_clbk_group_);
+  pc_timer_  = this->create_wall_timer(1000ms, std::bind(&FuserNode::timer_pc_callback, this));
 
   // Compute camera values.
   cp_sin_ = sin(camera_pitch);
@@ -167,8 +168,11 @@ void FuserNode::timer_vio_callback(void)
   // Pass the IR Left and Depth frames to the SLAM system
   ORB_SLAM2::HPose cameraPose = mpSLAM->TrackIRD(irMatrix, depthMatrix, realsense->getIRLeftTimestamp());
   unsigned int ORBState = (mpSLAM->GetTrackingState() == ORB_SLAM2::Tracking::OK) ? 3 : 0;
-  rs2_pose orbPose;
+
+  pcMutex.lock();
   poseConversion(cameraPose, ORBState, orbPose);
+  pointCloud = mpSLAM->getMap();
+  pcMutex.unlock();
 
   // The first time I receive a valid ORB-SLAM2 sample, I have to reset the T265 tracker.
   if (!cameraPose.empty() && firstReset) {
@@ -264,28 +268,51 @@ void FuserNode::timer_vio_callback(void)
   state_publisher_->publish(msg);
 }
 
+// To be deleted
+#define RADIUS 1.0
+
 /**
  * @brief Publishes the latest PC data to PointCloud topic.
  */
 void FuserNode::timer_pc_callback(void)
 {
-  // Fake plastic tree...
-  PointCloud cloud; // This has to come from VSLAM
+  PointCloud cloud;
   cloud.header.frame_id = "fuser_cloud";
-  cloud.header.stamp = rosTime(ros::WallTime::now());
-  Point tmp;
-  tmp.x = 1.0;
-  tmp.y = 2.0;
-  tmp.z = 3.0;
-  cloud.points.push_back(tmp);
-  tmp.x = 11.0;
-  tmp.y = 22.0;
-  tmp.z = 33.0;
-  cloud.points.push_back(tmp);
-  // ...fake plastic tree
+  cloud.header.stamp = now();
+
+  pcMutex.lock();
+  for(std::vector<ORB_SLAM2::MapPoint*>::iterator pcIt = pointCloud.begin(), 
+      pcEnd = pointCloud.end(); pcIt != pcEnd; pcIt++)
+    {
+      Point tmp;
+      ORB_SLAM2::MapPoint* cPoint = *pcIt;
+      cv::Mat worldPos = cPoint->GetWorldPos();
+
+      // TODO: adjust point coordinates
+
+      // TODO: select minimum radius
+      float dist = sqrt((orbPose.translation.x - worldPos.at<float>(0))*(orbPose.translation.x - worldPos.at<float>(0))
+            + (orbPose.translation.y - worldPos.at<float>(1))*(orbPose.translation.y - worldPos.at<float>(1))
+            + (orbPose.translation.z - worldPos.at<float>(2))*(orbPose.translation.z - worldPos.at<float>(2)));
+      // RCLCPP_INFO(this->get_logger(), "Distance from orb pose: %f", dist);
+
+      // Select the features with a distance not farther than RADIUS
+      if (dist < RADIUS) {
+        tmp.x = worldPos.at<float>(0);
+        tmp.y = worldPos.at<float>(1);
+        tmp.z = worldPos.at<float>(2);
+        cloud.points.push_back(tmp);
+      }
+    }
+  pcMutex.unlock();
+
+  // RCLCPP_INFO(this->get_logger(), "Cloud size: %d", cloud.points.size());
+  // RCLCPP_INFO(this->get_logger(), "PC[0]: %f %f %f", cloud.points[0].x, cloud.points[0].y, cloud.points[0].z);
+  // RCLCPP_INFO(this->get_logger(), "PC[1]: %f %f %f", cloud.points[1].x, cloud.points[1].y, cloud.points[1].z);
+  // RCLCPP_INFO(this->get_logger(), "PC[2]: %f %f %f", cloud.points[2].x, cloud.points[2].y, cloud.points[2].z);
 
   const uint32_t POINT_STEP = 12;
-  sensor_msgs::PointCloud2 msg{};
+  sensor_msgs::msg::PointCloud2 msg{};
 
   // Prepare the point cloud message header and fields
   msg.header.frame_id = cloud.header.frame_id;
@@ -293,15 +320,15 @@ void FuserNode::timer_pc_callback(void)
   msg.fields.resize(3);
   msg.fields[0].name = "x";
   msg.fields[0].offset = 0;
-  msg.fields[0].datatype = sensor_msgs::PointField::FLOAT32;
+  msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
   msg.fields[0].count = 1;
   msg.fields[1].name = "y";
   msg.fields[1].offset = 4;
-  msg.fields[1].datatype = sensor_msgs::PointField::FLOAT32;
+  msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
   msg.fields[1].count = 1;
   msg.fields[2].name = "z";
   msg.fields[2].offset = 8;
-  msg.fields[2].datatype = sensor_msgs::PointField::FLOAT32;
+  msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
   msg.fields[2].count = 1;
   msg.data.resize(std::max((size_t)1, cloud.points.size()) * POINT_STEP, 0x00);
   msg.point_step = POINT_STEP;
