@@ -13,6 +13,7 @@ using namespace std::chrono_literals;
 
 /* QoS profile for state data. */
 rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
+rmw_qos_profile_t qos_pc_profile = rmw_qos_profile_system_default;
 
 // Define our own PointCloud type for easy use
 typedef struct
@@ -39,7 +40,7 @@ FuserNode::FuserNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, float _cam
 {
   // Initialize QoS profile.
   auto state_qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
-  auto pc_qos    = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
+  auto pc_qos    = rclcpp::QoS(rclcpp::QoSInitialization(qos_pc_profile.history, qos_pc_profile.depth), qos_pc_profile);
 
   // Initialize publishers.
 #ifdef PX4
@@ -277,7 +278,8 @@ void FuserNode::timer_vio_callback(void)
 void FuserNode::timer_pc_callback(void)
 {
   PointCloud cloud;
-  cloud.header.frame_id = "fuser_cloud";
+  // cloud.header.frame_id = "fuser_cloud";
+  cloud.header.frame_id = "map";
   cloud.header.stamp = now();
 
   pcMutex.lock();
@@ -297,12 +299,12 @@ void FuserNode::timer_pc_callback(void)
       // RCLCPP_INFO(this->get_logger(), "Distance from orb pose: %f", dist);
 
       // Select the features with a distance not farther than RADIUS
-      if (dist < RADIUS) {
+      // if (dist < RADIUS) {
         tmp.x = worldPos.at<float>(0);
         tmp.y = worldPos.at<float>(1);
         tmp.z = worldPos.at<float>(2);
         cloud.points.push_back(tmp);
-      }
+      // }
     }
   pcMutex.unlock();
 
@@ -336,7 +338,7 @@ void FuserNode::timer_pc_callback(void)
   msg.height = 1;
   msg.width = msg.row_step / POINT_STEP;
   msg.is_bigendian = false;
-  msg.is_dense = true;
+  msg.is_dense = false;
   uint8_t *ptr = msg.data.data();
 
   // Fill the point cloud message with cloud points
