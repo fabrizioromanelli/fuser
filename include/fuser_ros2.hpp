@@ -35,6 +35,7 @@
 /* State messages. */
 #include <std_msgs/msg/int32.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <visualization_msgs/msg/marker.hpp>
 
 /**
  * @brief ORB_SLAM2 node: publishes pose estimates on ROS 2/PX4 topics.
@@ -58,6 +59,7 @@ private:
 
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr state_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_publisher_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr fuser_pose_publisher_;
 
   ORB_SLAM2::System *mpSLAM;
   rs2_pose orbPose;

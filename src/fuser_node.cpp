@@ -49,6 +49,8 @@ FuserNode::FuserNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, float _cam
   state_publisher_ = this->create_publisher<std_msgs::msg::Int32>("FuserState", state_qos);
   point_cloud_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloud", pc_qos);
 
+  fuser_pose_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("FuserPose", pc_qos);
+
   // Create callback groups.
 #ifdef PX4
   timestamp_clbk_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -264,13 +266,35 @@ void FuserNode::timer_vio_callback(void)
 #endif
 
   // Publish latest tracking state.
-  std_msgs::msg::Int32 msg{};
-  msg.set__data(_camPose.getAccuracy());
-  state_publisher_->publish(msg);
+  {
+    std_msgs::msg::Int32 msg{};
+    msg.set__data(_camPose.getAccuracy());
+    state_publisher_->publish(msg);
+  }
+
+  // Publish fused pose for marker visualization.
+  {
+    visualization_msgs::msg::Marker msg{};
+
+    // Prepare the point cloud message header and fields
+    msg.header.frame_id = "map";
+    msg.type = visualization_msgs::msg::Marker::SPHERE;
+    msg.pose.position.x = fusedPose.getTranslation()[0];
+    msg.pose.position.y = fusedPose.getTranslation()[1];
+    msg.pose.position.z = fusedPose.getTranslation()[2];
+    msg.scale.x = 0.1;
+    msg.scale.y = 0.1;
+    msg.scale.z = 0.1;
+    msg.color.a = 1.0;
+    msg.color.r = 0.0;
+    msg.color.g = 1.0;
+    msg.color.b = 0.0;
+    fuser_pose_publisher_->publish(msg);
+  }
 }
 
 // To be deleted
-#define RADIUS 1.0
+#define RADIUS 0.5
 
 /**
  * @brief Publishes the latest PC data to PointCloud topic.
@@ -289,22 +313,25 @@ void FuserNode::timer_pc_callback(void)
       Point tmp;
       ORB_SLAM2::MapPoint* cPoint = *pcIt;
       cv::Mat worldPos = cPoint->GetWorldPos();
+      float x, y, z;
+      // TODO: adjust point cloud when orbslam resets!
+      // Adjusting points to world reference system
+      x = worldPos.at<float>(2);
+      y = -worldPos.at<float>(0);
+      z = -worldPos.at<float>(1);
 
-      // TODO: adjust point coordinates
-
-      // TODO: select minimum radius
-      float dist = sqrt((orbPose.translation.x - worldPos.at<float>(0))*(orbPose.translation.x - worldPos.at<float>(0))
-            + (orbPose.translation.y - worldPos.at<float>(1))*(orbPose.translation.y - worldPos.at<float>(1))
-            + (orbPose.translation.z - worldPos.at<float>(2))*(orbPose.translation.z - worldPos.at<float>(2)));
+      float dist = sqrt((orbPose.translation.x - x)*(orbPose.translation.x - x)
+            + (orbPose.translation.y - y)*(orbPose.translation.y - y)
+            + (orbPose.translation.z - z)*(orbPose.translation.z - z));
       // RCLCPP_INFO(this->get_logger(), "Distance from orb pose: %f", dist);
 
       // Select the features with a distance not farther than RADIUS
-      // if (dist < RADIUS) {
-        tmp.x = worldPos.at<float>(0);
-        tmp.y = worldPos.at<float>(1);
-        tmp.z = worldPos.at<float>(2);
+      if (dist < RADIUS) {
+        tmp.x = x;
+        tmp.y = y;
+        tmp.z = z;
         cloud.points.push_back(tmp);
-      // }
+      }
     }
   pcMutex.unlock();
 

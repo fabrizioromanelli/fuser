@@ -31,6 +31,7 @@ option(DEBUG "Enable debug symbols and related compilation options" OFF)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3 3.1.0 REQUIRED)
@@ -86,6 +87,7 @@ if(PX4)
   ament_target_dependencies(${PROJECT_NAME} rclcpp
                                             std_msgs
                                             sensor_msgs
+                                            visualization_msgs
                                             Eigen3
                                             Pangolin
                                             px4_msgs
@@ -95,6 +97,7 @@ else()
   ament_target_dependencies(${PROJECT_NAME} rclcpp
                                             std_msgs
                                             sensor_msgs
+                                            visualization_msgs
                                             Eigen3
                                             Pangolin
                                             OpenCV
