@@ -36,8 +36,21 @@ typedef struct
  * @param realsense realsense instance pointer.
  * @param camera_pitch camera pitch angle in radians.
  */
-PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, float _camera_pitch) : Node(PERCEPTORNAME), mpSLAM(pSLAM), realsense(_realsense), camera_pitch(_camera_pitch)
+PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : Node(PERCEPTORNAME), mpSLAM(pSLAM), realsense(_realsense)
 {
+  // Declaring ROS2 parameters
+  this->declare_parameter("perception_radius");  // in meters
+  this->declare_parameter("camera_pitch"); // in rad
+  this->declare_parameter("point_cloud_period"); // in ms
+
+  // Assign ROS2 parameters
+  rclcpp::Parameter _perception_radius = this->get_parameter("perception_radius");
+  perceptionRadius = (float)_perception_radius.as_double();
+  rclcpp::Parameter _camera_pitch = this->get_parameter("camera_pitch");
+  camera_pitch = (float)_camera_pitch.as_double();
+  rclcpp::Parameter _point_cloud_period = this->get_parameter("point_cloud_period");
+  std::chrono::milliseconds pcPeriod{_point_cloud_period.as_int()};
+
   // Initialize QoS profile.
   auto state_qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
   auto pc_qos    = rclcpp::QoS(rclcpp::QoSInitialization(qos_pc_profile.history, qos_pc_profile.depth), qos_pc_profile);
@@ -80,13 +93,13 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, fl
 
   // Activate timer for PC publishing
   // PC: 1000 ms period.
-  pc_timer_  = this->create_wall_timer(1000ms, std::bind(&PerceptorNode::timer_pc_callback, this));
+  pc_timer_  = this->create_wall_timer(pcPeriod, std::bind(&PerceptorNode::timer_pc_callback, this));
 
   // Compute camera values.
   cp_sin_ = sin(camera_pitch);
   cp_cos_ = cos(camera_pitch);
 
-  RCLCPP_INFO(this->get_logger(), "Node initialized, camera pitch: %f", camera_pitch * 180.0f / M_PIf32);
+  RCLCPP_INFO(this->get_logger(), "Node initialized, camera pitch: %f [deg], perception radius: %f [m], point cloud period: %d [ms]", camera_pitch * 180.0f / M_PIf32, perceptionRadius, pcPeriod);
 }
 
 /**

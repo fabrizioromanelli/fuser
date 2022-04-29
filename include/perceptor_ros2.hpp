@@ -43,7 +43,7 @@
 class PerceptorNode : public rclcpp::Node
 {
 public:
-  PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *realsense, float camera_pitch);
+  PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *realsense);
 
   void poseConversion(const ORB_SLAM2::HPose &, const unsigned int, rs2_pose &);
   void poseConversion(const rs2_pose &, Pose &);
@@ -65,6 +65,7 @@ private:
   rs2_pose orbPose;
   vector<ORB_SLAM2::MapPoint*> pointCloud;
   int32_t perceptorState = Pose::trackQoS::LOST;
+  float perceptionRadius;
 
   std::mutex pcMutex;
 
