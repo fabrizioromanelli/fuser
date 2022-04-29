@@ -65,6 +65,7 @@ class Fuser
     Pose getFusedPose();
 
     Pose getOrbPose();
+    Pose getRecoveredPose();
     Pose getdeltaVOPose();
     Pose getdeltaORBPose();
 

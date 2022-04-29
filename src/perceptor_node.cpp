@@ -174,7 +174,6 @@ void PerceptorNode::timer_vio_callback(void)
 
   pcMutex.lock();
   poseConversion(cameraPose, ORBState, orbPose);
-  pointCloud = mpSLAM->getMap();
   pcMutex.unlock();
 
   // The first time I receive a valid ORB-SLAM2 sample, I have to reset the T265 tracker.
@@ -194,6 +193,11 @@ void PerceptorNode::timer_vio_callback(void)
   orbSyncedPose.setAccuracy(_orbPose.getAccuracy());
   fuser->fuse(_camPose, orbSyncedPose);
   fusedPose = fuser->getFusedPose();
+
+  pcMutex.lock();
+  pointCloud = mpSLAM->getMap();
+  camRecover = fuser->getRecoveredPose();
+  pcMutex.unlock();
 
   // Save the previous orb pose and timestamp
   poseConversion(orbPose, orbPrevPose);
@@ -302,75 +306,85 @@ void PerceptorNode::timer_vio_callback(void)
 void PerceptorNode::timer_pc_callback(void)
 {
   PointCloud cloud;
-  // cloud.header.frame_id = "fuser_cloud";
   cloud.header.frame_id = "map";
   cloud.header.stamp = now();
 
   pcMutex.lock();
-  for(std::vector<ORB_SLAM2::MapPoint*>::iterator pcIt = pointCloud.begin(), 
-      pcEnd = pointCloud.end(); pcIt != pcEnd; pcIt++)
-    {
-      Point tmp;
-      ORB_SLAM2::MapPoint* cPoint = *pcIt;
-      cv::Mat worldPos = cPoint->GetWorldPos();
-      float x, y, z;
-      // TODO: adjust point cloud when orbslam resets!
-      // Adjusting points to world reference system
-      x = worldPos.at<float>(2);
-      y = -worldPos.at<float>(0);
-      z = -worldPos.at<float>(1);
-
-      float dist = sqrt((orbPose.translation.x - x)*(orbPose.translation.x - x)
-            + (orbPose.translation.y - y)*(orbPose.translation.y - y)
-            + (orbPose.translation.z - z)*(orbPose.translation.z - z));
-      // RCLCPP_INFO(this->get_logger(), "Distance from orb pose: %f", dist);
-
-      // Select the features with a distance not farther than RADIUS
-      if (dist < RADIUS) {
-        tmp.x = x;
-        tmp.y = y;
-        tmp.z = z;
-        cloud.points.push_back(tmp);
-      }
-    }
-  pcMutex.unlock();
-
-  const uint32_t POINT_STEP = 12;
-  sensor_msgs::msg::PointCloud2 msg{};
-
-  // Prepare the point cloud message header and fields
-  msg.header.frame_id = cloud.header.frame_id;
-  msg.header.stamp = cloud.header.stamp;
-  msg.fields.resize(3);
-  msg.fields[0].name = "x";
-  msg.fields[0].offset = 0;
-  msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
-  msg.fields[0].count = 1;
-  msg.fields[1].name = "y";
-  msg.fields[1].offset = 4;
-  msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
-  msg.fields[1].count = 1;
-  msg.fields[2].name = "z";
-  msg.fields[2].offset = 8;
-  msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
-  msg.fields[2].count = 1;
-  msg.data.resize(std::max((size_t)1, cloud.points.size()) * POINT_STEP, 0x00);
-  msg.point_step = POINT_STEP;
-  msg.row_step = msg.data.size();
-  msg.height = 1;
-  msg.width = msg.row_step / POINT_STEP;
-  msg.is_bigendian = false;
-  msg.is_dense = false;
-  uint8_t *ptr = msg.data.data();
-
-  // Fill the point cloud message with cloud points
-  for (size_t i = 0; i < cloud.points.size(); i++)
+  if (orbPose.tracker_confidence != Fuser::LOST) // ORBSLAM2 tracker is working fine
   {
-    *(reinterpret_cast<float*>(ptr + 0)) = cloud.points[i].x;
-    *(reinterpret_cast<float*>(ptr + 4)) = cloud.points[i].y;
-    *(reinterpret_cast<float*>(ptr + 8)) = cloud.points[i].z;
-    ptr += POINT_STEP;
-  }
+    for(std::vector<ORB_SLAM2::MapPoint*>::iterator pcIt = pointCloud.begin(), 
+        pcEnd = pointCloud.end(); pcIt != pcEnd; pcIt++)
+      {
+        Point tmp;
+        ORB_SLAM2::MapPoint* cPoint = *pcIt;
+        cv::Mat worldPos = cPoint->GetWorldPos();
+        float x, y, z;
 
-  point_cloud_publisher_->publish(msg);
+        // Adjusting points to world reference system
+        x = worldPos.at<float>(Pose::Z);
+        y = -worldPos.at<float>(Pose::X);
+        z = -worldPos.at<float>(Pose::Y);
+
+        // Adjusting point cloud when orbslam resets
+        Pose adjPnt(x, y, z, 1.0, 0.0, 0.0, 0.0); // we just don't care about the orientation
+        if (camRecover.getTranslation()[Pose::X] != 0.0 && camRecover.getTranslation()[Pose::Y] != 0.0 && camRecover.getTranslation()[Pose::Z] != 0.0)
+          adjPnt.rotoTranslation(camRecover.getTranslation(), camRecover.getRotation());
+
+        float dist = sqrt((orbPose.translation.x - adjPnt.getTranslation()[Pose::X])*(orbPose.translation.x - adjPnt.getTranslation()[Pose::X])
+                        + (orbPose.translation.y - adjPnt.getTranslation()[Pose::Y])*(orbPose.translation.y - adjPnt.getTranslation()[Pose::Y])
+                        + (orbPose.translation.z - adjPnt.getTranslation()[Pose::Z])*(orbPose.translation.z - adjPnt.getTranslation()[Pose::Z]));
+        // RCLCPP_INFO(this->get_logger(), "Distance from orb pose: %f", dist);
+
+        // Select the features with a distance not farther than RADIUS
+        if (dist < RADIUS) {
+          tmp.x = adjPnt.getTranslation()[Pose::X];
+          tmp.y = adjPnt.getTranslation()[Pose::Y];
+          tmp.z = adjPnt.getTranslation()[Pose::Z];
+          cloud.points.push_back(tmp);
+        }
+      }
+    pcMutex.unlock();
+
+    const uint32_t POINT_STEP = 12;
+    sensor_msgs::msg::PointCloud2 msg{};
+
+    // Prepare the point cloud message header and fields
+    msg.header.frame_id = cloud.header.frame_id;
+    msg.header.stamp = cloud.header.stamp;
+    msg.fields.resize(3);
+    msg.fields[0].name = "x";
+    msg.fields[0].offset = 0;
+    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[0].count = 1;
+    msg.fields[1].name = "y";
+    msg.fields[1].offset = 4;
+    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[1].count = 1;
+    msg.fields[2].name = "z";
+    msg.fields[2].offset = 8;
+    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[2].count = 1;
+    msg.data.resize(std::max((size_t)1, cloud.points.size()) * POINT_STEP, 0x00);
+    msg.point_step = POINT_STEP;
+    msg.row_step = msg.data.size();
+    msg.height = 1;
+    msg.width = msg.row_step / POINT_STEP;
+    msg.is_bigendian = false;
+    msg.is_dense = false;
+    uint8_t *ptr = msg.data.data();
+
+    // Fill the point cloud message with cloud points
+    for (size_t i = 0; i < cloud.points.size(); i++)
+    {
+      *(reinterpret_cast<float*>(ptr + 0)) = cloud.points[i].x;
+      *(reinterpret_cast<float*>(ptr + 4)) = cloud.points[i].y;
+      *(reinterpret_cast<float*>(ptr + 8)) = cloud.points[i].z;
+      ptr += POINT_STEP;
+    }
+
+    point_cloud_publisher_->publish(msg);
+  } else { // ORBSLAM2 tracker is LOST
+    // We cannot publish any pointcloud
+    pcMutex.unlock();
+  }
 }
