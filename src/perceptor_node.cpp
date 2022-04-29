@@ -45,11 +45,11 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
 
   // Assign ROS2 parameters
   rclcpp::Parameter _perception_radius = this->get_parameter("perception_radius");
-  perceptionRadius = _perception_radius.at<float>();
+  perceptionRadius = (float)_perception_radius.as_double();
   rclcpp::Parameter _camera_pitch = this->get_parameter("camera_pitch");
-  camera_pitch = _camera_pitch.at<float>();
+  camera_pitch = (float)_camera_pitch.as_double();
   rclcpp::Parameter _point_cloud_period = this->get_parameter("point_cloud_period");
-  int pcPeriod = _point_cloud_period.at<int>();
+  int pcPeriod = _point_cloud_period.as_int();
 
   // Initialize QoS profile.
   auto state_qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
