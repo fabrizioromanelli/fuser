@@ -99,7 +99,7 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
   cp_sin_ = sin(camera_pitch);
   cp_cos_ = cos(camera_pitch);
 
-  RCLCPP_INFO(this->get_logger(), "Node initialized, camera pitch: %f", camera_pitch * 180.0f / M_PIf32);
+  RCLCPP_INFO(this->get_logger(), "Node initialized, camera pitch: %f [deg], perception radius: %f [m], point cloud period: %d [ms]", camera_pitch * 180.0f / M_PIf32, perceptionRadius, pcPeriod);
 }
 
 /**
