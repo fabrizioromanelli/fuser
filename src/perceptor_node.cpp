@@ -49,7 +49,7 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
   rclcpp::Parameter _camera_pitch = this->get_parameter("camera_pitch");
   camera_pitch = (float)_camera_pitch.as_double();
   rclcpp::Parameter _point_cloud_period = this->get_parameter("point_cloud_period");
-  int pcPeriod = _point_cloud_period.as_int();
+  std::chrono::milliseconds pcPeriod{_point_cloud_period.as_int()};
 
   // Initialize QoS profile.
   auto state_qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
@@ -93,7 +93,7 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
 
   // Activate timer for PC publishing
   // PC: 1000 ms period.
-  pc_timer_  = this->create_wall_timer(1000ms, std::bind(&PerceptorNode::timer_pc_callback, this));
+  pc_timer_  = this->create_wall_timer(pcPeriod, std::bind(&PerceptorNode::timer_pc_callback, this));
 
   // Compute camera values.
   cp_sin_ = sin(camera_pitch);
