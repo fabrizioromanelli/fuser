@@ -46,10 +46,10 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, fl
 #ifdef PX4
   vio_publisher_ = this->create_publisher<px4_msgs::msg::VehicleVisualOdometry>("VehicleVisualOdometry_PubSubTopic", 10);
 #endif
-  state_publisher_ = this->create_publisher<std_msgs::msg::Int32>("FuserState", state_qos);
+  state_publisher_ = this->create_publisher<std_msgs::msg::Int32>("PerceptorState", state_qos);
   point_cloud_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloud", pc_qos);
 
-  fuser_pose_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("FuserPose", pc_qos);
+  perceptor_pose_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("PerceptorPose", pc_qos);
 
   // Create callback groups.
 #ifdef PX4
@@ -64,7 +64,7 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, fl
   ts_sub_ = this->create_subscription<px4_msgs::msg::Timesync>(
       "Timesync_PubSubTopic",
       10,
-      std::bind(&FuserNode::timestamp_callback, this, std::placeholders::_1),
+      std::bind(&PerceptorNode::timestamp_callback, this, std::placeholders::_1),
       timesync_sub_opt);
 #endif
 
@@ -76,11 +76,11 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, fl
   // Activate timer for VIO publishing.
   // VIO: 10 ms period.
   // TODO: refactoring into thread
-  vio_timer_ = this->create_wall_timer(10ms, std::bind(&FuserNode::timer_vio_callback, this), vio_clbk_group_);
+  vio_timer_ = this->create_wall_timer(10ms, std::bind(&PerceptorNode::timer_vio_callback, this), vio_clbk_group_);
 
   // Activate timer for PC publishing
   // PC: 1000 ms period.
-  pc_timer_  = this->create_wall_timer(1000ms, std::bind(&FuserNode::timer_pc_callback, this));
+  pc_timer_  = this->create_wall_timer(1000ms, std::bind(&PerceptorNode::timer_pc_callback, this));
 
   // Compute camera values.
   cp_sin_ = sin(camera_pitch);
@@ -289,11 +289,11 @@ void PerceptorNode::timer_vio_callback(void)
     msg.color.r = 0.0;
     msg.color.g = 1.0;
     msg.color.b = 0.0;
-    fuser_pose_publisher_->publish(msg);
+    perceptor_pose_publisher_->publish(msg);
   }
 }
 
-// To be deleted
+// TODO: put this into a ros2 parameter
 #define RADIUS 0.5
 
 /**

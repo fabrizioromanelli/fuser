@@ -59,12 +59,12 @@ private:
 
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr state_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_publisher_;
-  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr fuser_pose_publisher_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr perceptor_pose_publisher_;
 
   ORB_SLAM2::System *mpSLAM;
   rs2_pose orbPose;
   vector<ORB_SLAM2::MapPoint*> pointCloud;
-  int32_t fuserState = Pose::trackQoS::LOST;
+  int32_t perceptorState = Pose::trackQoS::LOST;
 
   std::mutex pcMutex;
 

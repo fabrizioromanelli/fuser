@@ -12,9 +12,9 @@ def generate_launch_description():
     )
 
     # Node to start
-    fuser_node = Node(
-        package="fuser",
-        executable="fuser",
+    perceptor_node = Node(
+        package="perceptor",
+        executable="perceptor",
         output='both',
         emulate_tty=True,
         arguments=[
@@ -26,5 +26,5 @@ def generate_launch_description():
 
     return LaunchDescription([
         camera_pitch_launch_arg,
-        fuser_node
+        perceptor_node
     ])
