@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>fuser</name>
+  <name>perceptor</name>
   <version>1.0.0</version>
-  <description>Fuser ROS2 node</description>
+  <description>Perceptor ROS2 node</description>
   <maintainer email="fabrizio.romanelli@gmail.com">Fabrizio Romanelli</maintainer>
   <license>GNU</license>
 

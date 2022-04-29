@@ -1,5 +1,5 @@
 /**
- * @brief Fuser for ROS 2 package executable code.
+ * @brief Perceptor for ROS 2 package executable code.
  *
  * @author Fabrizio Romanelli <fabrizio.romanelli@gmail.com>
  * @author Roberto Masocco <robmasocco@gmail.com>
@@ -12,7 +12,7 @@
 #include <thread>
 
 #include "realsense.hpp"
-#include "fuser_ros2.hpp"
+#include "perceptor_ros2.hpp"
 
 #ifdef SMT
 #pragma message "Generating multithreaded VIO process"
@@ -43,21 +43,21 @@ int main(int argc, char **argv)
   // Initialize ROS 2 connection and MT executor.
   rclcpp::init(argc, argv);
 #ifdef SMT
-  rclcpp::executors::MultiThreadedExecutor fuser_mt_executor;
+  rclcpp::executors::MultiThreadedExecutor perceptor_mt_executor;
 #else
-  rclcpp::executors::SingleThreadedExecutor fuser_st_executor;
+  rclcpp::executors::SingleThreadedExecutor perceptor_st_executor;
 #endif
   std::cout << "ROS 2 executor initialized" << std::endl;
 
-  // Create FuserNode.
-  auto fuser_node_ptr = std::make_shared<FuserNode>(&SLAM, realsense, camera_pitch);
+  // Create PerceptorNode.
+  auto perceptor_node_ptr = std::make_shared<PerceptorNode>(&SLAM, realsense, camera_pitch);
 
 #ifdef SMT
-  fuser_mt_executor.add_node(fuser_node_ptr);
-  fuser_mt_executor.spin();
+  perceptor_mt_executor.add_node(perceptor_node_ptr);
+  perceptor_mt_executor.spin();
 #else
-  fuser_st_executor.add_node(fuser_node_ptr);
-  fuser_st_executor.spin();
+  perceptor_st_executor.add_node(perceptor_node_ptr);
+  perceptor_st_executor.spin();
 #endif
 
   // Done!

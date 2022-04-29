@@ -1,5 +1,5 @@
 /**
- * @brief Fuser pose publisher node source code.
+ * @brief Perceptor ROS2 node source code.
  *
  * @author Fabrizio Romanelli <fabrizio.romanelli@gmail.com>
  * @author Roberto Masocco <robmasocco@gmail.com>
@@ -7,7 +7,7 @@
  * @date Apr 23, 2022
  */
 
-#include "fuser_ros2.hpp"
+#include "perceptor_ros2.hpp"
 
 using namespace std::chrono_literals;
 
@@ -30,13 +30,13 @@ typedef struct
 } PointCloud;
 
 /**
- * @brief Creates an FuserNode.
+ * @brief Creates a PerceptorNode.
  * 
  * @param pSLAM ORB_SLAM2 instance pointer.
  * @param realsense realsense instance pointer.
  * @param camera_pitch camera pitch angle in radians.
  */
-FuserNode::FuserNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, float _camera_pitch) : Node(FUSERNAME), mpSLAM(pSLAM), realsense(_realsense), camera_pitch(_camera_pitch)
+PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, float _camera_pitch) : Node(PERCEPTORNAME), mpSLAM(pSLAM), realsense(_realsense), camera_pitch(_camera_pitch)
 {
   // Initialize QoS profile.
   auto state_qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
@@ -95,7 +95,7 @@ FuserNode::FuserNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, float _cam
  * @param msg Timesync message pointer.
  */
 #ifdef PX4
-void FuserNode::timestamp_callback(const px4_msgs::msg::Timesync::SharedPtr msg)
+void PerceptorNode::timestamp_callback(const px4_msgs::msg::Timesync::SharedPtr msg)
 {
   timestamp_.store(msg->timestamp, std::memory_order_release);
 }
@@ -108,7 +108,7 @@ void FuserNode::timestamp_callback(const px4_msgs::msg::Timesync::SharedPtr msg)
  * @param orbState ORBSLAM2 state to be propagated.
  * @param rs2Pose rs2 pose result of the conversion.
  */
-void FuserNode::poseConversion(const ORB_SLAM2::HPose & orbPose, const unsigned int orbState, rs2_pose & rs2Pose) {
+void PerceptorNode::poseConversion(const ORB_SLAM2::HPose & orbPose, const unsigned int orbState, rs2_pose & rs2Pose) {
   rs2Pose.translation.x = orbPose.GetTranslation()[0];
   rs2Pose.translation.y = orbPose.GetTranslation()[1];
   rs2Pose.translation.z = orbPose.GetTranslation()[2];
@@ -126,7 +126,7 @@ void FuserNode::poseConversion(const ORB_SLAM2::HPose & orbPose, const unsigned 
  * @param rs2Pose rs2 pose to be converted.
  * @param pose Pose result of the conversion.
  */
-void FuserNode::poseConversion(const rs2_pose & rs2Pose, Pose & pose) {
+void PerceptorNode::poseConversion(const rs2_pose & rs2Pose, Pose & pose) {
   pose.setTranslation(rs2Pose.translation.x, rs2Pose.translation.y, rs2Pose.translation.z);
   pose.setRotation(rs2Pose.rotation.w, rs2Pose.rotation.x, rs2Pose.rotation.y, rs2Pose.rotation.z);
   pose.setAccuracy(rs2Pose.tracker_confidence);
@@ -138,7 +138,7 @@ void FuserNode::poseConversion(const rs2_pose & rs2Pose, Pose & pose) {
  * @param pose Pose to be converted.
  * @param rs2Pose rs2 pose result of the conversion.
  */
-void FuserNode::poseConversion(Pose & pose, rs2_pose & rs2Pose) {
+void PerceptorNode::poseConversion(Pose & pose, rs2_pose & rs2Pose) {
   rs2Pose.translation.x = pose.getTranslation()[Pose::X];
   rs2Pose.translation.y = pose.getTranslation()[Pose::Y];
   rs2Pose.translation.z = pose.getTranslation()[Pose::Z];
@@ -152,7 +152,7 @@ void FuserNode::poseConversion(Pose & pose, rs2_pose & rs2Pose) {
 /**
  * @brief Publishes the latest VIO data to PX4 topics.
  */
-void FuserNode::timer_vio_callback(void)
+void PerceptorNode::timer_vio_callback(void)
 {
   //
   // Sensor fusion ready to go!
@@ -299,7 +299,7 @@ void FuserNode::timer_vio_callback(void)
 /**
  * @brief Publishes the latest PC data to PointCloud topic.
  */
-void FuserNode::timer_pc_callback(void)
+void PerceptorNode::timer_pc_callback(void)
 {
   PointCloud cloud;
   // cloud.header.frame_id = "fuser_cloud";
@@ -334,11 +334,6 @@ void FuserNode::timer_pc_callback(void)
       }
     }
   pcMutex.unlock();
-
-  // RCLCPP_INFO(this->get_logger(), "Cloud size: %d", cloud.points.size());
-  // RCLCPP_INFO(this->get_logger(), "PC[0]: %f %f %f", cloud.points[0].x, cloud.points[0].y, cloud.points[0].z);
-  // RCLCPP_INFO(this->get_logger(), "PC[1]: %f %f %f", cloud.points[1].x, cloud.points[1].y, cloud.points[1].z);
-  // RCLCPP_INFO(this->get_logger(), "PC[2]: %f %f %f", cloud.points[2].x, cloud.points[2].y, cloud.points[2].z);
 
   const uint32_t POINT_STEP = 12;
   sensor_msgs::msg::PointCloud2 msg{};

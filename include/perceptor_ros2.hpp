@@ -1,5 +1,5 @@
 /**
- * @brief Fuser for ROS 2 node definition.
+ * @brief Perceptor for ROS 2 node definition.
  *
  * @author Fabrizio Romanelli <fabrizio.romanelli@gmail.com>
  * @author Roberto Masocco <robmasocco@gmail.com>
@@ -7,8 +7,8 @@
  * @date Apr 23, 2022
  */
 
-#ifndef FUSER_ROS2_HPP
-#define FUSER_ROS2_HPP
+#ifndef PERCEPTOR_ROS2_HPP
+#define PERCEPTOR_ROS2_HPP
 
 #include <memory>
 #include <chrono>
@@ -24,7 +24,7 @@
 #include "pose.hpp"
 
 /* Node names. */
-#define FUSERNAME "fuser_node"
+#define PERCEPTORNAME "perceptor_node"
 
 /* PX4 messages. */
 #ifdef PX4
@@ -38,12 +38,12 @@
 #include <visualization_msgs/msg/marker.hpp>
 
 /**
- * @brief ORB_SLAM2 node: publishes pose estimates on ROS 2/PX4 topics.
+ * @brief Perceptor node: publishes pose estimates on ROS 2/PX4 topics, cloud points and images.
  */
-class FuserNode : public rclcpp::Node
+class PerceptorNode : public rclcpp::Node
 {
 public:
-  FuserNode(ORB_SLAM2::System *pSLAM, RealSense *realsense, float camera_pitch);
+  PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *realsense, float camera_pitch);
 
   void poseConversion(const ORB_SLAM2::HPose &, const unsigned int, rs2_pose &);
   void poseConversion(const rs2_pose &, Pose &);
@@ -89,4 +89,4 @@ private:
 #endif
 };
 
-#endif // FUSER_ROS2_HPP
+#endif // PERCEPTOR_ROS2_HPP

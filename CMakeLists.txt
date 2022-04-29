@@ -5,7 +5,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Default build type: Release" FORCE)
 endif()
 
-project(fuser)
+project(perceptor)
 
 # Default to C++14
 if(NOT CMAKE_CXX_STANDARD)
@@ -80,8 +80,8 @@ set(LIBS -lfbow
          -lboost_system)
 
 add_executable(${PROJECT_NAME} src/fuser.cc src/pose.cc Drivers/RealSense/realsense.cc
-                               src/fuser_ros2.cpp
-                               src/fuser_node.cpp)
+                               src/perceptor_ros2.cpp
+                               src/perceptor_node.cpp)
 
 if(PX4)
   ament_target_dependencies(${PROJECT_NAME} rclcpp
