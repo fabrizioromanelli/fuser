@@ -73,7 +73,7 @@ private:
 
   bool firstReset;
 
-  Pose orbPrevPose;
+  Pose orbPrevPose, camRecover;
   rs2_time_t orbPrevTs;
 
   Fuser *fuser;

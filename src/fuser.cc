@@ -34,6 +34,8 @@ Fuser::Fuser(): REDUCTION_FACTOR(0.01), recovered(false), firstRecover(true), me
   pose.setRotation(1.0,0.0,0.0,0.0);
   posePrev.setTranslation(0.0,0.0,0.0);
   posePrev.setRotation(1.0,0.0,0.0,0.0);
+  camRecover.setTranslation(0.0,0.0,0.0);
+  camRecover.setRotation(1.0,0.0,0.0,0.0);
   orbQoSPrev.reserve(RECOVERY_BUFFER);
   orbQoSFilterReset.reserve(FILTER_WINDOW);
 }
@@ -85,6 +87,11 @@ Pose Fuser::getFusedPose()
 Pose Fuser::getOrbPose()
 {
   return(orbPose);
+}
+
+Pose Fuser::getRecoveredPose()
+{
+  return(camRecover);
 }
 
 Pose Fuser::getdeltaVOPose()
