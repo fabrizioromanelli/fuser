@@ -31,8 +31,6 @@ int main(int argc, char **argv)
   setvbuf(stdout, NULL, _IONBF, 0);
   setvbuf(stderr, NULL, _IONBF, 0);
 
-  float camera_pitch = atof(argv[3]);
-
   // Create ORB_SLAM2 instance.
   ORB_SLAM2::System SLAM(argv[1], argv[2], ORB_SLAM2::System::RGBD, false, true);
 
@@ -50,7 +48,7 @@ int main(int argc, char **argv)
   std::cout << "ROS 2 executor initialized" << std::endl;
 
   // Create PerceptorNode.
-  auto perceptor_node_ptr = std::make_shared<PerceptorNode>(&SLAM, realsense, camera_pitch);
+  auto perceptor_node_ptr = std::make_shared<PerceptorNode>(&SLAM, realsense);
 
 #ifdef SMT
   perceptor_mt_executor.add_node(perceptor_node_ptr);

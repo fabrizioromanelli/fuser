@@ -5,16 +5,15 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    # Set arguments from command line
-    camera_pitch_launch_arg = DeclareLaunchArgument(
-        "camera_pitch",
-        description='Camera pitch angle in radians'
-    )
-
     # Node to start
     perceptor_node = Node(
         package="perceptor",
         executable="perceptor",
+        parameters=[
+          {'perception_radius': 1.0},
+          {'camera_pitch': 0.0},
+          {'point_cloud_period': 1000}
+        ],
         output='both',
         emulate_tty=True,
         arguments=[
@@ -24,7 +23,4 @@ def generate_launch_description():
         ]
     )
 
-    return LaunchDescription([
-        camera_pitch_launch_arg,
-        perceptor_node
-    ])
+    return LaunchDescription([perceptor_node])

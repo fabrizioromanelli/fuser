@@ -36,8 +36,21 @@ typedef struct
  * @param realsense realsense instance pointer.
  * @param camera_pitch camera pitch angle in radians.
  */
-PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense, float _camera_pitch) : Node(PERCEPTORNAME), mpSLAM(pSLAM), realsense(_realsense), camera_pitch(_camera_pitch)
+PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : Node(PERCEPTORNAME), mpSLAM(pSLAM), realsense(_realsense)
 {
+  // Declaring ROS2 parameters
+  this->declare_parameter("perception_radius");  // in meters
+  this->declare_parameter("camera_pitch"); // in rad
+  this->declare_parameter("point_cloud_period"); // in ms
+
+  // Assign ROS2 parameters
+  rclcpp::Parameter _perception_radius = this->get_parameter("perception_radius");
+  perceptionRadius = _perception_radius.at<float>();
+  rclcpp::Parameter _camera_pitch = this->get_parameter("camera_pitch");
+  camera_pitch = _camera_pitch.at<float>();
+  rclcpp::Parameter _point_cloud_period = this->get_parameter("point_cloud_period");
+  int pcPeriod = _point_cloud_period.at<int>();
+
   // Initialize QoS profile.
   auto state_qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
   auto pc_qos    = rclcpp::QoS(rclcpp::QoSInitialization(qos_pc_profile.history, qos_pc_profile.depth), qos_pc_profile);
