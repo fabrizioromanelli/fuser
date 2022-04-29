@@ -42,6 +42,7 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
   this->declare_parameter("perception_radius");  // in meters
   this->declare_parameter("camera_pitch"); // in rad
   this->declare_parameter("point_cloud_period"); // in ms
+  this->declare_parameter("down_camera_idx"); // integer index
 
   // Assign ROS2 parameters
   rclcpp::Parameter _perception_radius = this->get_parameter("perception_radius");
@@ -50,6 +51,18 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
   camera_pitch = (float)_camera_pitch.as_double();
   rclcpp::Parameter _point_cloud_period = this->get_parameter("point_cloud_period");
   std::chrono::milliseconds pcPeriod{_point_cloud_period.as_int()};
+  rclcpp::Parameter _down_camera_idx = this->get_parameter("down_camera_idx");
+
+  // Initialize USB down camera
+  downCamera.open(_down_camera_idx.as_int());
+  if (!downCamera.isOpened())
+  {
+    exit(-1);
+  }
+
+    // cv::Mat frame;
+    // if ( ! cap.read(frame) )
+    //   break;
 
   // Initialize QoS profile.
   auto state_qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
@@ -99,7 +112,7 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
   cp_sin_ = sin(camera_pitch);
   cp_cos_ = cos(camera_pitch);
 
-  RCLCPP_INFO(this->get_logger(), "Node initialized, camera pitch: %f [deg], perception radius: %f [m], point cloud period: %d [ms]", camera_pitch * 180.0f / M_PIf32, perceptionRadius, pcPeriod);
+  RCLCPP_INFO(this->get_logger(), "Node initialized, camera pitch: %f [deg], perception radius: %f [m], point cloud period: %d [ms], down camera index: %d", camera_pitch * 180.0f / M_PIf32, perceptionRadius, pcPeriod, _down_camera_idx.as_int());
 }
 
 /**

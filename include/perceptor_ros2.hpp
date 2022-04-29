@@ -67,6 +67,8 @@ private:
   int32_t perceptorState = Pose::trackQoS::LOST;
   float perceptionRadius;
 
+  cv::VideoCapture downCamera;
+
   std::mutex pcMutex;
 
   RealSense *realsense;
