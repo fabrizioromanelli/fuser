@@ -11,7 +11,8 @@ def generate_launch_description():
           {'perception_radius': 1.0},
           {'camera_pitch': 0.0},
           {'point_cloud_period': 1000},
-          {'down_camera_idx': 8}
+          {'down_camera_idx': 8},
+          {'down_camera_period': 300}
         ],
         output='both',
         emulate_tty=True,
