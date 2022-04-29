@@ -64,10 +64,6 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
     exit(-1);
   }
 
-    // cv::Mat frame;
-    // if ( ! cap.read(frame) )
-    //   break;
-
   // Initialize QoS profile.
   auto state_qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
   auto pc_qos    = rclcpp::QoS(rclcpp::QoSInitialization(qos_pc_profile.history, qos_pc_profile.depth), qos_pc_profile);
@@ -113,13 +109,13 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
   pc_timer_  = this->create_wall_timer(pcPeriod, std::bind(&PerceptorNode::timer_pc_callback, this));
 
   // Activate timer for Down Camera images publishing
-  dc_timer_ = this->create_wall_timer(dcPeriod, std::bind(&MinimalPublisher::timer_dc_callback, this));
+  dc_timer_ = this->create_wall_timer(dcPeriod, std::bind(&PerceptorNode::timer_dc_callback, this));
 
   // Compute camera values.
   cp_sin_ = sin(camera_pitch);
   cp_cos_ = cos(camera_pitch);
 
-  RCLCPP_INFO(this->get_logger(), "Node initialized, camera pitch: %f [deg], perception radius: %f [m], point cloud period: %d [ms], down camera index: %d", camera_pitch * 180.0f / M_PIf32, perceptionRadius, pcPeriod, downCameraIdx);
+  RCLCPP_INFO(this->get_logger(), "Node initialized, camera pitch: %f [deg], perception radius: %f [m], point cloud period: %d [ms], down camera index: %d, down camera period: %d [ms]", camera_pitch * 180.0f / M_PIf32, perceptionRadius, pcPeriod, downCameraIdx, dcPeriod);
 }
 
 /**
@@ -356,7 +352,7 @@ void PerceptorNode::timer_pc_callback(void)
       // RCLCPP_INFO(this->get_logger(), "Distance from orb pose: %f", dist);
 
       // Select the features with a distance not farther than RADIUS
-      if (dist < RADIUS) {
+      if (dist < perceptionRadius) {
         tmp.x = x;
         tmp.y = y;
         tmp.z = z;
@@ -410,5 +406,11 @@ void PerceptorNode::timer_pc_callback(void)
  */
 void PerceptorNode::timer_dc_callback()
 {
-
+  cv_bridge::CvImagePtr cv_ptr;
+  cv::Mat frame;
+  if (downCamera.read(frame))
+  {
+    sensor_msgs::msg::Image::SharedPtr msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame).toImageMsg();
+    down_camera_publisher_->publish(*msg.get());
+  }
 }
