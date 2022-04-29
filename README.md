@@ -4,4 +4,4 @@ Comprehensive ROS 2 package for the Perceptor (based on [ORB_SLAM2](https://gith
 Currently supports Intel RealSense cameras, and standard USB cameras and offers many configuration options.
 Written in C++.
 
-**Work in progress as of April 24, 2022.**
+**Stable version as of April 29, 2022.**
