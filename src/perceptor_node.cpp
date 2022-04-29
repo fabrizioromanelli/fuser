@@ -42,6 +42,8 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
   this->declare_parameter("perception_radius");  // in meters
   this->declare_parameter("camera_pitch"); // in rad
   this->declare_parameter("point_cloud_period"); // in ms
+  this->declare_parameter("down_camera_idx"); // integer index
+  this->declare_parameter("down_camera_period"); // in ms
 
   // Assign ROS2 parameters
   rclcpp::Parameter _perception_radius = this->get_parameter("perception_radius");
@@ -50,6 +52,17 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
   camera_pitch = (float)_camera_pitch.as_double();
   rclcpp::Parameter _point_cloud_period = this->get_parameter("point_cloud_period");
   std::chrono::milliseconds pcPeriod{_point_cloud_period.as_int()};
+  rclcpp::Parameter _down_camera_idx = this->get_parameter("down_camera_idx");
+  int downCameraIdx = _down_camera_idx.as_int();
+  rclcpp::Parameter _down_camera_period = this->get_parameter("down_camera_period");
+  std::chrono::milliseconds dcPeriod{_down_camera_period.as_int()};
+
+  // Initialize USB down camera
+  downCamera.open(downCameraIdx);
+  if (!downCamera.isOpened())
+  {
+    exit(-1);
+  }
 
   // Initialize QoS profile.
   auto state_qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
@@ -63,6 +76,7 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
   point_cloud_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloud", pc_qos);
 
   perceptor_pose_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("PerceptorPose", pc_qos);
+  down_camera_publisher_ = this->create_publisher<sensor_msgs::msg::Image>("DownCameraImg", 10);
 
   // Create callback groups.
 #ifdef PX4
@@ -92,14 +106,16 @@ PerceptorNode::PerceptorNode(ORB_SLAM2::System *pSLAM, RealSense *_realsense) : 
   vio_timer_ = this->create_wall_timer(10ms, std::bind(&PerceptorNode::timer_vio_callback, this), vio_clbk_group_);
 
   // Activate timer for PC publishing
-  // PC: 1000 ms period.
   pc_timer_  = this->create_wall_timer(pcPeriod, std::bind(&PerceptorNode::timer_pc_callback, this));
+
+  // Activate timer for Down Camera images publishing
+  dc_timer_ = this->create_wall_timer(dcPeriod, std::bind(&PerceptorNode::timer_dc_callback, this));
 
   // Compute camera values.
   cp_sin_ = sin(camera_pitch);
   cp_cos_ = cos(camera_pitch);
 
-  RCLCPP_INFO(this->get_logger(), "Node initialized, camera pitch: %f [deg], perception radius: %f [m], point cloud period: %d [ms]", camera_pitch * 180.0f / M_PIf32, perceptionRadius, pcPeriod);
+  RCLCPP_INFO(this->get_logger(), "Node initialized, camera pitch: %f [deg], perception radius: %f [m], point cloud period: %d [ms], down camera index: %d, down camera period: %d [ms]", camera_pitch * 180.0f / M_PIf32, perceptionRadius, pcPeriod, downCameraIdx, dcPeriod);
 }
 
 /**
@@ -310,9 +326,6 @@ void PerceptorNode::timer_vio_callback(void)
   }
 }
 
-// TODO: put this into a ros2 parameter
-#define RADIUS 0.5
-
 /**
  * @brief Publishes the latest PC data to PointCloud topic.
  */
@@ -348,8 +361,8 @@ void PerceptorNode::timer_pc_callback(void)
                         + (orbPose.translation.z - adjPnt.getTranslation()[Pose::Z])*(orbPose.translation.z - adjPnt.getTranslation()[Pose::Z]));
         // RCLCPP_INFO(this->get_logger(), "Distance from orb pose: %f", dist);
 
-        // Select the features with a distance not farther than RADIUS
-        if (dist < RADIUS) {
+        // Select the features with a distance not farther than perceptionRadius
+        if (dist < perceptionRadius) {
           tmp.x = adjPnt.getTranslation()[Pose::X];
           tmp.y = adjPnt.getTranslation()[Pose::Y];
           tmp.z = adjPnt.getTranslation()[Pose::Z];
@@ -399,5 +412,19 @@ void PerceptorNode::timer_pc_callback(void)
   } else { // ORBSLAM2 tracker is LOST
     // We cannot publish any pointcloud
     pcMutex.unlock();
+  }
+}
+
+/**
+ * @brief Publishes the latest Down Camera data to DownCameraImg topic.
+ */
+void PerceptorNode::timer_dc_callback()
+{
+  cv_bridge::CvImagePtr cv_ptr;
+  cv::Mat frame;
+  if (downCamera.read(frame))
+  {
+    sensor_msgs::msg::Image::SharedPtr msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame).toImageMsg();
+    down_camera_publisher_->publish(*msg.get());
   }
 }

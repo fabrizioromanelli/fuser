@@ -45,6 +45,7 @@ if(NOT OpenCV_FOUND)
   message(FATAL_ERROR "OpenCV > 4.5.1 not found.")
 endif()
 find_package(realsense2 REQUIRED)
+find_package(cv_bridge REQUIRED)
 
 if(NOT HOST_COMPILATION)
   find_package(CUDA REQUIRED)
@@ -87,6 +88,7 @@ if(PX4)
   ament_target_dependencies(${PROJECT_NAME} rclcpp
                                             std_msgs
                                             sensor_msgs
+                                            cv_bridge
                                             visualization_msgs
                                             Eigen3
                                             Pangolin
@@ -97,6 +99,7 @@ else()
   ament_target_dependencies(${PROJECT_NAME} rclcpp
                                             std_msgs
                                             sensor_msgs
+                                            cv_bridge
                                             visualization_msgs
                                             Eigen3
                                             Pangolin

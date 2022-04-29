@@ -52,20 +52,24 @@ public:
 private:
   void timer_vio_callback(void);
   void timer_pc_callback(void);
+  void timer_dc_callback(void);
 
   rclcpp::CallbackGroup::SharedPtr vio_clbk_group_;
 
-  rclcpp::TimerBase::SharedPtr vio_timer_, pc_timer_;
+  rclcpp::TimerBase::SharedPtr vio_timer_, pc_timer_, dc_timer_;
 
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr state_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_publisher_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr perceptor_pose_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr down_camera_publisher_;
 
   ORB_SLAM2::System *mpSLAM;
   rs2_pose orbPose;
   vector<ORB_SLAM2::MapPoint*> pointCloud;
   int32_t perceptorState = Pose::trackQoS::LOST;
   float perceptionRadius;
+
+  cv::VideoCapture downCamera;
 
   std::mutex pcMutex;
 
