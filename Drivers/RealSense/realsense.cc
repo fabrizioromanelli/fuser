@@ -379,6 +379,7 @@ inline void RealSense::initializeSensors()
       config[D435I].enable_device(serial);
       config[D435I].enable_stream( rs2_stream::RS2_STREAM_INFRARED, IR_LEFT, ir_left_width, ir_left_height, rs2_format::RS2_FORMAT_Y8, ir_left_fps );
       config[D435I].enable_stream( rs2_stream::RS2_STREAM_DEPTH, depth_width, depth_height, rs2_format::RS2_FORMAT_Z16, depth_fps );
+      config[D435I].enable_stream( rs2_stream::RS2_STREAM_COLOR, color_width, color_height, rs2_format::RS2_FORMAT_BGR8, color_fps );
 
       pipeline_profile = pipe.start(config[D435I]);
       realSense_device = pipeline_profile.get_device();
@@ -468,6 +469,7 @@ void RealSense::updateMULTI()
   updateInfraredIRLeft();
   updateDepth();
   updatePose();
+  updateColor();
 }
 
 // Update Frame
