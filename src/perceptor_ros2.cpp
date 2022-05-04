@@ -32,7 +32,7 @@ int main(int argc, char **argv)
   setvbuf(stderr, NULL, _IONBF, 0);
 
   // Create ORB_SLAM2 instance.
-  ORB_SLAM2::System SLAM(argv[1], argv[2], ORB_SLAM2::System::RGBD, false, true);
+  ORB_SLAM2::System SLAM(argv[1], argv[2], ORB_SLAM2::System::RGBD, false, false);
 
   // Initialize RealSense cameras
   RealSense::sModality mode = RealSense::MULTI;
