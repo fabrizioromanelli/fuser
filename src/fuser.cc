@@ -34,6 +34,10 @@ Fuser::Fuser(): REDUCTION_FACTOR(0.01), recovered(false), firstRecover(true), me
   pose.setRotation(1.0,0.0,0.0,0.0);
   posePrev.setTranslation(0.0,0.0,0.0);
   posePrev.setRotation(1.0,0.0,0.0,0.0);
+  poseFiltered.setTranslation(0.0,0.0,0.0);
+  poseFiltered.setRotation(1.0,0.0,0.0,0.0);
+  poseFilteredPrev.setTranslation(0.0,0.0,0.0);
+  poseFilteredPrev.setRotation(1.0,0.0,0.0,0.0);
   camRecover.setTranslation(0.0,0.0,0.0);
   camRecover.setRotation(1.0,0.0,0.0,0.0);
   orbQoSPrev.reserve(RECOVERY_BUFFER);
