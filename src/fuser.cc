@@ -69,20 +69,12 @@ void Fuser::synchronizer(double timestep1, double timestep2, double timestep3, P
 
     if (s1.getRotation().w() != 0.0 && s2.getRotation().w() != 0.0 && s1.getRotation().x() != 0.0 && s2.getRotation().x() != 0.0 && s1.getRotation().y() != 0.0 && s2.getRotation().y() != 0.0 && s1.getRotation().z() != 0.0 && s2.getRotation().z() != 0.0)
     {
-      // var rot = q2*Quaternion.Inverse(q1); // rot is the rotation from t1 to t2
-      // var dt = (t3 - t1)/(t2 - t1); // dt = extrapolation factor
-      // var ang: float;
-      // var axis: Vector3;
-      // rot.ToAngleAxis(ang, axis); // find axis-angle representation
-      // if (ang > 180) ang -= 360;  // assume the shortest path
-      // ang = ang * dt % 360; // multiply angle by the factor
-      // q3 = Quaternion.AngleAxis(ang, axis) * q1; // combine with first rotation
       double dt = (timestep3 - timestep1)/(timestep2 - timestep1);
       Eigen::Quaterniond rotation = s2.getRotation() * s1.getRotation().inverse();
       Eigen::AngleAxisd rotAA(rotation);
       if (rotAA.angle() > M_PI)
         rotAA.angle() -= 2*M_PI;
-      rotAA.angle() = (rotAA.angle() * dt) % 2*M_PI;
+      rotAA.angle() = std::fmod(rotAA.angle() * dt, 2*M_PI);
       Eigen::Quaterniond s3quat(Eigen::AngleAxisd(rotAA.angle(), rotAA.axis()));
       s3.setRotation(s3quat * s1.getRotation());
     }
