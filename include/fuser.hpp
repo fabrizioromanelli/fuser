@@ -73,7 +73,7 @@ class Fuser
 
   private:
     void sensorFusion(std::vector<double> &, std::vector<double> &);
-
+    Eigen::Quaterniond median_quaternions_weiszfeld(Eigen::MatrixXd, double, double, int);
 };
 
 #endif // __FUSER__

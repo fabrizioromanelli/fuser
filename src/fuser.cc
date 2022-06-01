@@ -25,6 +25,81 @@ class SplineInterpolator {
     Eigen::Spline<double, 1> spline_;
 };
 
+static inline void t_qfix(Eigen::Quaterniond &q) {
+ if (q.w() < 0)  {
+  q.w() = -q.w();
+  q.x() = -q.x();
+  q.y() = -q.y();
+  q.z() = -q.z();
+ }
+}
+
+Eigen::Vector4d avg_quaternion_markley(Eigen::MatrixXd Q) {
+    Eigen::Matrix4d A = Eigen::Matrix4d::Zero();
+    int M = Q.rows();
+
+    for(int i=0; i<M; i++)
+    {
+      Eigen::Vector4d q = Q.row(i);
+      if (q[0]<0)
+        q = -q;
+      A = q*q.adjoint() + A;
+    }
+
+    A = (1.0/M)*A;
+
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eig(A);
+    Eigen::Vector4d qavg = eig.eigenvectors().col(3);
+    return qavg;
+}
+
+// Quaternions are assumed to be stored in columns!
+Eigen::Quaterniond Fuser::median_quaternions_weiszfeld(Eigen::MatrixXd Q, double p = 1, double maxAngularUpdate = 0.0001, int maxIterations = 1000) {
+  Eigen::Matrix4d A = Eigen::Matrix4d::Zero();
+  int M = Q.cols();
+  Eigen::Vector4d st = avg_quaternion_markley(Q.transpose());
+  Eigen::Quaterniond qMedian(st[0], st[1], st[2], st[3]);
+  const double epsAngle = 0.0000001;
+  maxAngularUpdate = std::max(maxAngularUpdate, epsAngle);
+  double theta = 10 * maxAngularUpdate;
+  int i = 0;
+
+  while (theta > maxAngularUpdate && i <= maxIterations) {
+    Eigen::Vector3d delta(0,0,0);
+    double weightSum = 0;
+    for (int j = 0; j < M; j++) {
+      Eigen::Vector4d q = Q.col(j);
+      Eigen::Quaterniond qj = Eigen::Quaterniond(q[0], q[1], q[2], q[3])*(qMedian.conjugate());
+      double theta = 2 * acos(qj.w());
+      if (theta > epsAngle) {
+        Eigen::Vector3d axisAngle = qj.vec() / sin(theta / 2);
+        axisAngle *= theta;
+        double weight = 1.0 / pow(theta, 2 - p);
+        delta += weight * axisAngle;
+        weightSum += weight;
+      }
+    }
+
+    if (weightSum > epsAngle) {
+      delta /= weightSum;
+      theta = delta.norm();
+      if (theta > epsAngle) {
+        double stby2 = sin(theta*0.5);
+        delta /= theta;
+        Eigen::Quaterniond q(cos(theta*0.5), stby2*delta(0), stby2*delta(1), stby2*delta(2));
+        qMedian = q * qMedian;
+        t_qfix(qMedian);
+      }
+    } else {
+      theta = 0;
+    }
+
+    i++;
+  }
+
+  return qMedian;
+}
+
 Fuser::Fuser(): REDUCTION_FACTOR(0.01), recovered(false), firstRecover(true), medianFilterReady(false), fuserStatus(UNINITIALIZED), orbQoS(LOST), camQoS(LOST), alphaBlending(0.75), alphaWeight(0.7), counter(0)
 {
   recoverSteps = FILTER_WINDOW + 1;
@@ -170,6 +245,7 @@ bool Fuser::fuse(Pose camVO, Pose orbVO)
   if (medianFilterReady) {
     // Filtering orb spikes with median filter
     std::vector<MedianFilter<double, FILTER_WINDOW>> orbFilters(pose.getPoseElements());
+    Eigen::MatrixXd qSamples(4,FILTER_WINDOW);
 
     for (unsigned int j = 0; j < FILTER_WINDOW - 1; j++) {
       orbPoseBuffer[j] = orbPoseBuffer[j+1];
@@ -178,23 +254,22 @@ bool Fuser::fuse(Pose camVO, Pose orbVO)
       orbFilters[Pose::X].addSample(orbPoseBuffer[j].getTranslation()[Pose::X]);
       orbFilters[Pose::Y].addSample(orbPoseBuffer[j].getTranslation()[Pose::Y]);
       orbFilters[Pose::Z].addSample(orbPoseBuffer[j].getTranslation()[Pose::Z]);
-      orbFilters[Pose::WQ].addSample(orbPoseBuffer[j].getRotation().w());
-      orbFilters[Pose::XQ].addSample(orbPoseBuffer[j].getRotation().x());
-      orbFilters[Pose::YQ].addSample(orbPoseBuffer[j].getRotation().y());
-      orbFilters[Pose::ZQ].addSample(orbPoseBuffer[j].getRotation().z());
+      qSamples(0,j) = orbPoseBuffer[j].getRotation().w();
+      qSamples(1,j) = orbPoseBuffer[j].getRotation().x();
+      qSamples(2,j) = orbPoseBuffer[j].getRotation().y();
+      qSamples(3,j) = orbPoseBuffer[j].getRotation().z();
     }
     orbPoseBuffer[FILTER_WINDOW-1] = _orbPose;
     orbFilters[Pose::X].addSample(orbPoseBuffer[FILTER_WINDOW-1].getTranslation()[Pose::X]);
     orbFilters[Pose::Y].addSample(orbPoseBuffer[FILTER_WINDOW-1].getTranslation()[Pose::Y]);
     orbFilters[Pose::Z].addSample(orbPoseBuffer[FILTER_WINDOW-1].getTranslation()[Pose::Z]);
-    orbFilters[Pose::WQ].addSample(orbPoseBuffer[FILTER_WINDOW-1].getRotation().w());
-    orbFilters[Pose::XQ].addSample(orbPoseBuffer[FILTER_WINDOW-1].getRotation().x());
-    orbFilters[Pose::YQ].addSample(orbPoseBuffer[FILTER_WINDOW-1].getRotation().y());
-    orbFilters[Pose::ZQ].addSample(orbPoseBuffer[FILTER_WINDOW-1].getRotation().z());
+    qSamples(0,FILTER_WINDOW-1) = orbPoseBuffer[FILTER_WINDOW-1].getRotation().w();
+    qSamples(1,FILTER_WINDOW-1) = orbPoseBuffer[FILTER_WINDOW-1].getRotation().x();
+    qSamples(2,FILTER_WINDOW-1) = orbPoseBuffer[FILTER_WINDOW-1].getRotation().y();
+    qSamples(3,FILTER_WINDOW-1) = orbPoseBuffer[FILTER_WINDOW-1].getRotation().z();
 
     _orbPose.setTranslation(orbFilters[Pose::X].getMedian(), orbFilters[Pose::Y].getMedian(), orbFilters[Pose::Z].getMedian());
-    Eigen::Quaterniond tmpQuat = {orbFilters[Pose::WQ].getMedian(), orbFilters[Pose::XQ].getMedian(), orbFilters[Pose::YQ].getMedian(), orbFilters[Pose::ZQ].getMedian()};
-    _orbPose.setRotation(tmpQuat);
+    _orbPose.setRotation(median_quaternions_weiszfeld(qSamples));
   } else {
     orbPoseBuffer.push_back(_orbPose);
     if (orbPoseBuffer.size() == FILTER_WINDOW)
@@ -243,6 +318,7 @@ bool Fuser::fuse(Pose camVO, Pose orbVO)
   if (medianFilterReady && recoverSteps > FILTER_WINDOW) {
     // Filtering fused pose with median filter
     std::vector<MedianFilter<double, FILTER_WINDOW>> poseFilters(pose.getPoseElements());
+    Eigen::MatrixXd qSamples(4,FILTER_WINDOW);
 
     for (unsigned int j = 0; j < FILTER_WINDOW - 1; j++) {
       poseBuffer[j] = poseBuffer[j+1];
@@ -251,23 +327,22 @@ bool Fuser::fuse(Pose camVO, Pose orbVO)
       poseFilters[Pose::X].addSample(poseBuffer[j].getTranslation()[Pose::X]);
       poseFilters[Pose::Y].addSample(poseBuffer[j].getTranslation()[Pose::Y]);
       poseFilters[Pose::Z].addSample(poseBuffer[j].getTranslation()[Pose::Z]);
-      poseFilters[Pose::WQ].addSample(poseBuffer[j].getRotation().w());
-      poseFilters[Pose::XQ].addSample(poseBuffer[j].getRotation().x());
-      poseFilters[Pose::YQ].addSample(poseBuffer[j].getRotation().y());
-      poseFilters[Pose::ZQ].addSample(poseBuffer[j].getRotation().z());
+      qSamples(0,j) = poseBuffer[j].getRotation().w();
+      qSamples(1,j) = poseBuffer[j].getRotation().x();
+      qSamples(2,j) = poseBuffer[j].getRotation().y();
+      qSamples(3,j) = poseBuffer[j].getRotation().z();
     }
     poseBuffer[FILTER_WINDOW-1] = pose;
     poseFilters[Pose::X].addSample(poseBuffer[FILTER_WINDOW-1].getTranslation()[Pose::X]);
     poseFilters[Pose::Y].addSample(poseBuffer[FILTER_WINDOW-1].getTranslation()[Pose::Y]);
     poseFilters[Pose::Z].addSample(poseBuffer[FILTER_WINDOW-1].getTranslation()[Pose::Z]);
-    poseFilters[Pose::WQ].addSample(poseBuffer[FILTER_WINDOW-1].getRotation().w());
-    poseFilters[Pose::XQ].addSample(poseBuffer[FILTER_WINDOW-1].getRotation().x());
-    poseFilters[Pose::YQ].addSample(poseBuffer[FILTER_WINDOW-1].getRotation().y());
-    poseFilters[Pose::ZQ].addSample(poseBuffer[FILTER_WINDOW-1].getRotation().z());
+    qSamples(0,FILTER_WINDOW-1) = poseBuffer[FILTER_WINDOW-1].getRotation().w();
+    qSamples(1,FILTER_WINDOW-1) = poseBuffer[FILTER_WINDOW-1].getRotation().x();
+    qSamples(2,FILTER_WINDOW-1) = poseBuffer[FILTER_WINDOW-1].getRotation().y();
+    qSamples(3,FILTER_WINDOW-1) = poseBuffer[FILTER_WINDOW-1].getRotation().z();
 
     poseFiltered.setTranslation(poseFilters[Pose::X].getMedian(), poseFilters[Pose::Y].getMedian(), poseFilters[Pose::Z].getMedian());
-    Eigen::Quaterniond tmpQuat = {poseFilters[Pose::WQ].getMedian(), poseFilters[Pose::XQ].getMedian(), poseFilters[Pose::YQ].getMedian(), poseFilters[Pose::ZQ].getMedian()};
-    poseFiltered.setRotation(tmpQuat);
+    poseFiltered.setRotation(median_quaternions_weiszfeld(qSamples));
   } else {
     if (poseBuffer.size() != FILTER_WINDOW)
       poseBuffer.push_back(pose);
